@@ -1,111 +1,137 @@
 {% extends "base.html" %}
 
+{% block title %}Dashboard{% endblock %}
+
 {% block content %}
-<div class="row">
-    <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-header">
-                <h3>Add Transaction</h3>
-            </div>
-            <div class="card-body">
-                <form id="transactionForm">
-                    <div class="mb-3">
-                        <label class="form-label">Amount</label>
-                        <input type="number" step="0.01" class="form-control" id="amount" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Category</label>
-                        <select class="form-control" id="category" required>
-                            <option value="food">Food</option>
-                            <option value="transportation">Transportation</option>
-                            <option value="utilities">Utilities</option>
-                            <option value="entertainment">Entertainment</option>
-                            <option value="shopping">Shopping</option>
-                            <option value="salary">Salary</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Type</label>
-                        <select class="form-control" id="transactionType" required>
-                            <option value="expense">Expense</option>
-                            <option value="income">Income</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <input type="text" class="form-control" id="description">
-                    </div>
-                    <button type="submit" class="btn btn-primary">Add Transaction</button>
-                </form>
-            </div>
+<div class="summary-card">
+    <div class="summary-item">
+        <div class="summary-item-title">
+            <i class="fas fa-arrow-up text-success"></i>
+            Total Income
         </div>
-
-        <div class="card">
-            <div class="card-header">
-                <h3>Upload Bank Statement</h3>
-            </div>
-            <div class="card-body">
-                <form id="uploadForm">
-                    <div class="mb-3">
-                        <input type="file" class="form-control" id="pdfFile" accept=".pdf" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Upload PDF</button>
-                </form>
-            </div>
-        </div>
+        <div class="summary-item-value" id="totalIncome">$0.00</div>
     </div>
-
-    <div class="col-md-8">
-        <div class="card mb-4">
-            <div class="card-header">
-                <h3>Summary</h3>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h4>Total Income</h4>
-                        <p class="h2 text-success" id="totalIncome">$0.00</p>
-                    </div>
-                    <div class="col-md-6">
-                        <h4>Total Expenses</h4>
-                        <p class="h2 text-danger" id="totalExpenses">$0.00</p>
-                    </div>
-                </div>
-                <div class="mt-4">
-                    <h4>By Category</h4>
-                    <div id="categoryChart"></div>
-                </div>
-                <div class="mt-4">
-                    <h4>Monthly Summary</h4>
-                    <div id="monthlyChart"></div>
-                </div>
-            </div>
+    <div class="summary-item">
+        <div class="summary-item-title">
+            <i class="fas fa-arrow-down text-danger"></i>
+            Total Expenses
         </div>
+        <div class="summary-item-value" id="totalExpenses">$0.00</div>
+    </div>
+    <div class="summary-item">
+        <div class="summary-item-title">
+            <i class="fas fa-balance-scale"></i>
+            Balance
+        </div>
+        <div class="summary-item-value" id="balance">$0.00</div>
+    </div>
+</div>
 
-        <div class="card">
-            <div class="card-header">
-                <h3>Recent Transactions</h3>
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-plus-circle"></i>
+            Add Transaction
+        </h3>
+    </div>
+    <div class="card-body">
+        <form id="transactionForm">
+            <div class="form-group">
+                <label class="form-label" for="amount">Amount</label>
+                <input type="number" class="form-control" id="amount" step="0.01" required>
             </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Category</th>
-                                <th>Description</th>
-                                <th>Amount</th>
-                                <th>Type</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="transactionsList">
-                        </tbody>
-                    </table>
-                </div>
+            <div class="form-group">
+                <label class="form-label" for="category">Category</label>
+                <select class="form-control" id="category" required>
+                    <option value="">Select a category</option>
+                    <option value="Food">Food</option>
+                    <option value="Transportation">Transportation</option>
+                    <option value="Housing">Housing</option>
+                    <option value="Entertainment">Entertainment</option>
+                    <option value="Utilities">Utilities</option>
+                    <option value="Salary">Salary</option>
+                    <option value="Other">Other</option>
+                </select>
             </div>
+            <div class="form-group">
+                <label class="form-label" for="transactionType">Type</label>
+                <select class="form-control" id="transactionType" required>
+                    <option value="expense">Expense</option>
+                    <option value="income">Income</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="description">Description</label>
+                <input type="text" class="form-control" id="description">
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i>
+                Add Transaction
+            </button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-file-pdf"></i>
+            Upload PDF Statement
+        </h3>
+    </div>
+    <div class="card-body">
+        <form id="pdfForm">
+            <div class="form-group">
+                <label class="form-label" for="pdfFile">Select PDF File</label>
+                <input type="file" class="form-control" id="pdfFile" accept=".pdf" required>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-upload"></i>
+                Upload and Process
+            </button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-list"></i>
+            Recent Transactions
+        </h3>
+    </div>
+    <div class="card-body">
+        <div class="transaction-list" id="transactionsList">
+            <!-- Transactions will be loaded here -->
         </div>
     </div>
 </div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-chart-pie"></i>
+            Category Breakdown
+        </h3>
+    </div>
+    <div class="card-body">
+        <canvas id="categoryChart"></canvas>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-chart-line"></i>
+            Monthly Summary
+        </h3>
+    </div>
+    <div class="card-body">
+        <canvas id="monthlyChart"></canvas>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {% endblock %} 
