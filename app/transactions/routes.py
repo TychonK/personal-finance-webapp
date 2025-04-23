@@ -1,4 +1,5 @@
 import os
+import re
 from flask import render_template, redirect, url_for, flash, request, jsonify, current_app
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
@@ -7,11 +8,73 @@ from app.transactions import bp
 from app.models import Transaction
 import pdfplumber
 import pandas as pd
+from datetime import datetime
 
 ALLOWED_EXTENSIONS = {'pdf'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def extract_transactions_from_text(text):
+    transactions = []
+    current_app.logger.debug(f"Processing text: {text[:200]}...")  # Log first 200 chars
+    
+    # Simplified amount pattern
+    amount_pattern = r'\$?\s*(\d+\.\d{2})'
+    
+    # Split text into lines and process each line
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    
+    for line in lines:
+        try:
+            # Look for amount
+            amount_match = re.search(amount_pattern, line)
+            if not amount_match:
+                continue
+                
+            amount = float(amount_match.group(1))
+            
+            # Get description by removing the amount and cleaning up
+            description = re.sub(amount_pattern, '', line).strip()
+            if not description:
+                continue
+                
+            # Determine transaction type
+            transaction_type = 'expense'
+            if any(word in description.lower() for word in ['salary', 'deposit', 'refund', 'credit']):
+                transaction_type = 'income'
+            
+            # Determine category
+            category = 'Other'
+            category_keywords = {
+                'Food': ['restaurant', 'cafe', 'food', 'groceries', 'dining'],
+                'Transportation': ['uber', 'lyft', 'taxi', 'transport', 'gas', 'fuel'],
+                'Housing': ['rent', 'mortgage', 'housing', 'apartment'],
+                'Entertainment': ['movie', 'netflix', 'spotify', 'entertainment', 'game'],
+                'Utilities': ['electric', 'water', 'internet', 'phone', 'utility'],
+                'Salary': ['salary', 'paycheck', 'income']
+            }
+            
+            for cat, keywords in category_keywords.items():
+                if any(keyword in description.lower() for keyword in keywords):
+                    category = cat
+                    break
+            
+            transactions.append({
+                'amount': amount,
+                'description': description,
+                'transaction_type': transaction_type,
+                'category': category,
+                'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            })
+            
+            current_app.logger.debug(f"Found transaction: {amount} - {description}")
+            
+        except Exception as e:
+            current_app.logger.error(f"Error processing line '{line}': {str(e)}")
+            continue
+    
+    return transactions
 
 @bp.route('/add_transaction', methods=['POST'])
 @login_required
@@ -86,21 +149,53 @@ def upload_pdf():
             filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
             
+            current_app.logger.info(f"Processing PDF file: {filename}")
+            
             # Process PDF
-            transactions = []
+            extracted_transactions = []
             with pdfplumber.open(filepath) as pdf:
-                for page in pdf.pages:
+                for i, page in enumerate(pdf.pages):
+                    current_app.logger.info(f"Processing page {i+1}")
                     text = page.extract_text()
-                    # Here you would implement your specific PDF parsing logic
-                    # This is a placeholder for the actual parsing logic
-                    pass
+                    if text:
+                        transactions = extract_transactions_from_text(text)
+                        extracted_transactions.extend(transactions)
+            
+            current_app.logger.info(f"Extracted {len(extracted_transactions)} transactions")
+            
+            # Save extracted transactions to database
+            saved_transactions = []
+            for transaction_data in extracted_transactions:
+                try:
+                    transaction = Transaction(
+                        amount=transaction_data['amount'],
+                        category=transaction_data['category'],
+                        transaction_type=transaction_data['transaction_type'],
+                        description=transaction_data['description'],
+                        date=datetime.strptime(transaction_data['date'], '%Y-%m-%d %H:%M:%S'),
+                        user_id=current_user.id,
+                        source='pdf'
+                    )
+                    db.session.add(transaction)
+                    saved_transactions.append(transaction.to_dict())
+                except Exception as e:
+                    current_app.logger.error(f"Error saving transaction: {str(e)}")
+                    continue
+            
+            db.session.commit()
             
             if os.path.exists(filepath):
                 os.remove(filepath)
-            return jsonify({'message': 'PDF processed successfully', 'transactions': transactions})
+                
+            return jsonify({
+                'message': f'Successfully extracted {len(saved_transactions)} transactions',
+                'transactions': saved_transactions
+            })
+            
         except Exception as e:
             if os.path.exists(filepath):
                 os.remove(filepath)
+            current_app.logger.error(f'Error processing PDF: {str(e)}')
             return jsonify({'error': str(e)}), 500
     return jsonify({'error': 'Invalid file type'}), 400
 
