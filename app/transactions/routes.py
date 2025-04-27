@@ -15,65 +15,70 @@ ALLOWED_EXTENSIONS = {'pdf'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+import re
+from datetime import datetime
+
 def extract_transactions_from_text(text):
     transactions = []
-    current_app.logger.debug(f"Processing text: {text[:200]}...")  # Log first 200 chars
-    
-    # Simplified amount pattern
-    amount_pattern = r'\$?\s*(\d+\.\d{2})'
-    
-    # Split text into lines and process each line
     lines = [line.strip() for line in text.split('\n') if line.strip()]
-    
-    for line in lines:
-        try:
-            # Look for amount
-            amount_match = re.search(amount_pattern, line)
-            if not amount_match:
+
+    date_pattern = r'\d{2}\.\d{2}\.\d{4}'
+    amount_pattern = r'([-+]?[0-9\s,.]+)\s*(PLN|EUR)'
+
+    current_transaction = {}
+    last_date = None
+
+    for idx, line in enumerate(lines):
+        # Debug print
+        print(f"Line {idx}: {line}")
+
+        # If line has a date
+        date_match = re.search(date_pattern, line)
+        if date_match:
+            last_date = date_match.group()
+
+        # If line has amount
+        amount_match = re.search(amount_pattern, line)
+        if amount_match and last_date:
+            amount_raw = amount_match.group(1)
+            currency = amount_match.group(2)
+            try:
+                amount_clean = float(amount_raw.replace(' ', '').replace(',', '.'))
+            except ValueError:
+                # Skip if cannot cleanly convert amount
                 continue
-                
-            amount = float(amount_match.group(1))
-            
-            # Get description by removing the amount and cleaning up
-            description = re.sub(amount_pattern, '', line).strip()
-            if not description:
-                continue
-                
-            # Determine transaction type
-            transaction_type = 'expense'
-            if any(word in description.lower() for word in ['salary', 'deposit', 'refund', 'credit']):
-                transaction_type = 'income'
-            
-            # Determine category
-            category = 'Other'
-            category_keywords = {
-                'Food': ['restaurant', 'cafe', 'food', 'groceries', 'dining'],
-                'Transportation': ['uber', 'lyft', 'taxi', 'transport', 'gas', 'fuel'],
-                'Housing': ['rent', 'mortgage', 'housing', 'apartment'],
-                'Entertainment': ['movie', 'netflix', 'spotify', 'entertainment', 'game'],
-                'Utilities': ['electric', 'water', 'internet', 'phone', 'utility'],
-                'Salary': ['salary', 'paycheck', 'income']
-            }
-            
-            for cat, keywords in category_keywords.items():
-                if any(keyword in description.lower() for keyword in keywords):
-                    category = cat
+
+            description = 'Unknown'
+            # Search backwards for the merchant (quote line)
+            for back_idx in range(idx-1, max(idx-5, -1), -1):
+                if lines[back_idx].startswith('"') and lines[back_idx].endswith('"'):
+                    description = lines[back_idx].strip('\"')
                     break
-            
+
+            transaction_type = 'income' if amount_clean > 0 else 'expense'
+
+            # Optional category detection
+            category = 'Other'
+            nearby_text = ' '.join(lines[max(0, idx-3):idx+3]).lower()
+            if 'restauracje' in nearby_text or 'kawiarnia' in nearby_text:
+                category = 'Food & Drink'
+            elif 'internet' in nearby_text or 'telefon' in nearby_text:
+                category = 'Utilities'
+            elif 'hobby' in nearby_text:
+                category = 'Hobby'
+
             transactions.append({
-                'amount': amount,
+                'date': datetime.strptime(last_date, '%d.%m.%Y').strftime('%Y-%m-%d %H:%M:%S'),
+                'amount': abs(amount_clean),
+                'currency': currency,
                 'description': description,
                 'transaction_type': transaction_type,
                 'category': category,
-                'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             })
-            
-            current_app.logger.debug(f"Found transaction: {amount} - {description}")
-            
-        except Exception as e:
-            current_app.logger.error(f"Error processing line '{line}': {str(e)}")
-            continue
-    
+
+            # After using this date, clear it
+            last_date = None
+
     return transactions
 
 @bp.route('/add_transaction', methods=['POST'])
@@ -148,21 +153,27 @@ def upload_pdf():
             filename = secure_filename(file.filename)
             filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
-            
-            current_app.logger.info(f"Processing PDF file: {filename}")
-            
-            # Process PDF
-            extracted_transactions = []
+
+            # current_app.logger.info(f"Processing PDF file: {filename}")
+
+            # Collect all text at once
+            full_text = ""
             with pdfplumber.open(filepath) as pdf:
                 for i, page in enumerate(pdf.pages):
-                    current_app.logger.info(f"Processing page {i+1}")
-                    text = page.extract_text()
-                    if text:
-                        transactions = extract_transactions_from_text(text)
-                        extracted_transactions.extend(transactions)
-            
+                    # current_app.logger.info(f"Processing page {i+1}")
+                    page_text = page.extract_text()
+                    if page_text:
+                        full_text += page_text + "\n"
+
+            # Process full text ONCE
+            print("----- FULL EXTRACTED TEXT START -----")
+            print(full_text)
+            print("----- FULL EXTRACTED TEXT END -----")
+
+            extracted_transactions = extract_transactions_from_text(full_text)
+
             current_app.logger.info(f"Extracted {len(extracted_transactions)} transactions")
-            
+
             # Save extracted transactions to database
             saved_transactions = []
             for transaction_data in extracted_transactions:
@@ -181,17 +192,17 @@ def upload_pdf():
                 except Exception as e:
                     current_app.logger.error(f"Error saving transaction: {str(e)}")
                     continue
-            
+
             db.session.commit()
-            
+
             if os.path.exists(filepath):
                 os.remove(filepath)
-                
+
             return jsonify({
                 'message': f'Successfully extracted {len(saved_transactions)} transactions',
                 'transactions': saved_transactions
             })
-            
+
         except Exception as e:
             if os.path.exists(filepath):
                 os.remove(filepath)
