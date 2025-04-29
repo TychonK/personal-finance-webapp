@@ -1,8 +1,12 @@
 from app import create_app, db
+from app.models import User, Transaction, Category
 
 app = create_app()
-
 with app.app_context():
-    # Create all database tables
+    # Drop all tables
+    db.drop_all()
+    
+    # Create all tables
     db.create_all()
-    print("Database tables created successfully!") 
+    
+    print("Database initialized successfully!") 
