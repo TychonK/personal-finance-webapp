@@ -4,7 +4,26 @@ from urllib.parse import urlparse
 from app import db
 from app.auth import bp
 from app.auth.forms import LoginForm, RegistrationForm
-from app.models import User
+from app.models import User, Category
+
+def create_default_categories(user_id):
+    default_categories = [
+        ('Food & Dining', 'expense'),
+        ('Transportation', 'expense'),
+        ('Housing', 'expense'),
+        ('Utilities', 'expense'),
+        ('Shopping', 'expense'),
+        ('Entertainment', 'expense'),
+        ('Healthcare', 'expense'),
+        ('Salary', 'income'),
+        ('Investments', 'income'),
+        ('Other Income', 'income')
+    ]
+    
+    for name, transaction_type in default_categories:
+        category = Category(name=name, user_id=user_id, is_default=True)
+        db.session.add(category)
+    db.session.commit()
 
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
@@ -38,6 +57,7 @@ def register():
         user.set_password(form.password.data)
         db.session.add(user)
         db.session.commit()
+        create_default_categories(user.id)
         flash('Congratulations, you are now a registered user!')
         return redirect(url_for('auth.login'))
     return render_template('auth/register.html', title='Register', form=form) 
