@@ -59,22 +59,6 @@ python run.py
    - View analytics and summaries
    - Track spending by category
 
-## Project Structure
-
-```
-personal-finance-webapp/
-├── app/
-│   ├── __init__.py
-│   ├── auth/
-│   ├── main/
-│   ├── transactions/
-│   ├── static/
-│   └── templates/
-├── venv/
-├── config.py
-├── requirements.txt
-└── run.py
-```
 
 ## Contributing
 
