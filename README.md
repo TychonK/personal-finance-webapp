@@ -39,7 +39,7 @@ DATABASE_URL=sqlite:///app.db  # or your database URL
 
 5. Initialize the database:
 ```bash
-python run.py
+python init_db.py
 ```
 
 ## Usage
